@@ -29,7 +29,7 @@ public class RandomDataP extends AbstractProcessor {
 
     private final int itemsPerSecond;
     private final boolean cooperative;
-    private final String lagTrackerName;
+    private final String lagTrackerPrefix;
 
     private Random random = new Random();
     private long startNanoTime;
@@ -38,12 +38,13 @@ public class RandomDataP extends AbstractProcessor {
     private long interval;
     private final int minSleepTime;
     private IAtomicLong lagTracker;
+    private long lagTrackerNextUpdate = Long.MIN_VALUE;
 
-    public RandomDataP(int itemsPerSecond, boolean cooperative, String lagTrackerName,
+    public RandomDataP(int itemsPerSecond, boolean cooperative, String lagTrackerPrefix,
                        int minSleepTime) {
         this.itemsPerSecond = itemsPerSecond;
         this.cooperative = cooperative;
-        this.lagTrackerName = lagTrackerName;
+        this.lagTrackerPrefix = lagTrackerPrefix;
         this.interval = SECONDS.toNanos(1) / itemsPerSecond;
         this.minSleepTime = minSleepTime;
     }
@@ -52,14 +53,18 @@ public class RandomDataP extends AbstractProcessor {
     protected void init(@Nonnull Context context) throws Exception {
         startNanoTime = System.nanoTime();
         startRealTime = System.currentTimeMillis();
-        lagTracker = context.jetInstance().getHazelcastInstance().getAtomicLong(lagTrackerName);
+        lagTracker = context.jetInstance().getHazelcastInstance().getAtomicLong(
+                lagTrackerPrefix + context.globalProcessorIndex());
     }
 
     @Override
     public boolean complete() {
         long nowNs = System.nanoTime();
         long shouldHaveEmitted = NANOSECONDS.toSeconds((nowNs - startNanoTime) * itemsPerSecond);
-        lagTracker.set(shouldHaveEmitted - numEmitted);
+        if (nowNs >= lagTrackerNextUpdate) {
+            lagTracker.set(shouldHaveEmitted - numEmitted);
+            lagTrackerNextUpdate = nowNs + SECONDS.toNanos(1);
+        }
         if (numEmitted == shouldHaveEmitted) {
             // this is what kafka connector after PR#442 does: if it has nothing to emit, it just returns
             if (cooperative) {

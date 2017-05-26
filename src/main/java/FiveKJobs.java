@@ -99,7 +99,7 @@ public class FiveKJobs {
                 int finalI = i;
                 executor.submit(() -> {
                     try {
-                        instance.newJob(buildDag(sDirectory + finalI, clusterSize, "lag" + finalI,
+                        instance.newJob(buildDag(sDirectory + finalI, clusterSize, "lag" + finalI + "-",
                                 finalI < heavyJobs ? 0 : 10000,
                                 finalI < heavyJobs ? itemsPerSecondPerNode / numJobs : 100, cooperative)).execute();
 
@@ -112,7 +112,7 @@ public class FiveKJobs {
             executor.shutdown();
             executor.awaitTermination(Long.MAX_VALUE, TimeUnit.DAYS);
 
-            IAtomicLong lagTracker = instance.getHazelcastInstance().getAtomicLong("lag0");
+            IAtomicLong lagTracker = instance.getHazelcastInstance().getAtomicLong("lag0-0");
             for (int i = 0; i < BENCHMARK_TIMEOUT / 1000; i++) {
                 System.out.println("1st job emission lag: " + lagTracker.get());
                 Thread.sleep(1000);
@@ -122,7 +122,7 @@ public class FiveKJobs {
         }
     }
 
-    private static DAG buildDag(String directory, int clusterSize, String lagTrackerName, int minSleepTime,
+    private static DAG buildDag(String directory, int clusterSize, String lagTrackerPrefix, int minSleepTime,
                                 int itemsPerSecond, boolean cooperative) {
         DAG dag = new DAG();
 
@@ -136,7 +136,7 @@ public class FiveKJobs {
         // reduces per-job overhead as the number of queues between processors
         // is lower.
         Vertex source = dag.newVertex("source",
-                () -> new RandomDataP(itemsPerSecond, cooperative, lagTrackerName, minSleepTime))
+                () -> new RandomDataP(itemsPerSecond, cooperative, lagTrackerPrefix, minSleepTime))
                            .localParallelism(1);
         Vertex insertPunc = dag.newVertex("insertPunc",
                 insertPunctuation(Entry<Long, Integer>::getKey, () -> withFixedLag(0).throttleByFrame(wDef)))
