@@ -12,7 +12,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <log4j.version>1.2.12</log4j.version>
     </properties>
-    
+
     <repositories>
         <repository>
             <id>snapshot-repository</id>
@@ -39,11 +39,11 @@
             <artifactId>hazelcast-jet</artifactId>
             <version>0.4-SNAPSHOT</version>
         </dependency>
-        <dependency>
-            <groupId>log4j</groupId>
-            <artifactId>log4j</artifactId>
-            <version>${log4j.version}</version>
-        </dependency>
+        <!--<dependency>-->
+            <!--<groupId>log4j</groupId>-->
+            <!--<artifactId>log4j</artifactId>-->
+            <!--<version>${log4j.version}</version>-->
+        <!--</dependency>-->
         <dependency>
             <groupId>com.google.code.findbugs</groupId>
             <artifactId>annotations</artifactId>
@@ -54,7 +54,7 @@
 
     <build>
         <plugins>
-        
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -78,27 +78,27 @@
                 </configuration>
             </plugin>
 
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <artifactSet>
-                        <excludes>
-                            <exclude>com.hazelcast.jet:hazelcast-jet</exclude>
-                            <exclude>com.hazelcast:hazelcast</exclude>
-                            <exclude>com.hazelcast:hazelcast-client</exclude>
-                        </excludes>
-                    </artifactSet>
-                </configuration>
-            </plugin>
+            <!--<plugin>-->
+                <!--<groupId>org.apache.maven.plugins</groupId>-->
+                <!--<artifactId>maven-shade-plugin</artifactId>-->
+                <!--<executions>-->
+                    <!--<execution>-->
+                        <!--<phase>package</phase>-->
+                        <!--<goals>-->
+                            <!--<goal>shade</goal>-->
+                        <!--</goals>-->
+                    <!--</execution>-->
+                <!--</executions>-->
+                <!--<configuration>-->
+                    <!--<artifactSet>-->
+                        <!--<excludes>-->
+                            <!--<exclude>com.hazelcast.jet:hazelcast-jet</exclude>-->
+                            <!--<exclude>com.hazelcast:hazelcast</exclude>-->
+                            <!--<exclude>com.hazelcast:hazelcast-client</exclude>-->
+                        <!--</excludes>-->
+                    <!--</artifactSet>-->
+                <!--</configuration>-->
+            <!--</plugin>-->
 
         </plugins>
     </build>

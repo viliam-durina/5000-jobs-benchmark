@@ -26,6 +26,7 @@ import com.hazelcast.jet.TimestampedEntry;
 import com.hazelcast.jet.Vertex;
 import com.hazelcast.jet.WindowDefinition;
 import com.hazelcast.jet.function.DistributedFunction;
+import com.hazelcast.jet.server.JetBootstrap;
 import com.hazelcast.nio.IOUtil;
 
 import java.io.File;
@@ -52,26 +53,31 @@ public class FiveKJobs {
     private static final long BENCHMARK_TIMEOUT = SECONDS.toMillis(1800);
 
     public static void main(String[] args) throws Exception {
-        System.setProperty("hazelcast.logging.type", "log4j");
+//        System.setProperty("hazelcast.logging.type", "log4j");
 
         if (args.length != 4) {
             System.err.println("Usage:");
             System.err.println("  " + FiveKJobs.class.getSimpleName()
-                    + " <numJobs> <globalItemsPerJob> <isCooperative> <numHeavyJobs(_=all)>");
+                    + " <numJobs> <itemsPerSecondPerNode> <isCooperative> <numHeavyJobs(_=all)>");
             System.exit(1);
         }
 
         /* Number of jobs spawn */
-        final int numJobs = Integer.parseInt(args[0]);
+        final int numJobs = Integer.parseInt(args[0].replace("_", ""));
         /* Items emitted per job per second, cluster-wide */
-        final int globalItemsPerSecondPerJob = Integer.parseInt(args[1]);
+        final int itemsPerSecondPerNode = Integer.parseInt(args[1].replace("_", ""));
         final boolean cooperative = Boolean.parseBoolean(args[2]);
-        final int heavyJobs = args[3].equals("_") ? Integer.MAX_VALUE : Integer.parseInt(args[3]);
+        final int heavyJobs = args[3].equals("_") ? Integer.MAX_VALUE : Integer.parseInt(args[3].replace("_", ""));
+
+        if (itemsPerSecondPerNode % numJobs != 0) {
+            System.err.println("Items per second must be an integer multiple of numJobs");
+            System.exit(1);
+        }
 
         Path directory = Files.createTempDirectory(FiveKJobs.class.getSimpleName());
         String sDirectory = directory + File.separator;
 
-        JetInstance instance = Jet.newJetInstance();
+//        JetInstance instance = Jet.newJetInstance();
 //        JetInstance instance2 = Jet.newJetInstance();
 
 //        ClientConfig config = new ClientConfig();
@@ -80,20 +86,27 @@ public class FiveKJobs {
 //        config.getGroupConfig().setPassword("jet-pass");
 //        JetInstance instance = Jet.newJetClient(config);
 
-//        JetInstance instance = JetBootstrap.getInstance();
+        JetInstance instance = JetBootstrap.getInstance();
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> IOUtil.delete(directory.toFile())));
 
         try {
             int clusterSize = instance.getCluster().getMembers().size();
+            // submit the jobs in parallel
             ExecutorService executor = Executors.newFixedThreadPool(20);
+            System.out.println("Submitting " + numJobs + " jobs...");
             for (int i = 0; i < numJobs; i++) {
                 int finalI = i;
                 executor.submit(() -> {
-                    instance.newJob(buildDag(sDirectory + finalI, clusterSize, "lag" + finalI,
-                            finalI < heavyJobs ? 0 : 10000,
-                            finalI < heavyJobs ? globalItemsPerSecondPerJob / clusterSize : 100, cooperative)).execute();
-                    System.out.println("job " + finalI + " submitted");
+                    try {
+                        instance.newJob(buildDag(sDirectory + finalI, clusterSize, "lag" + finalI,
+                                finalI < heavyJobs ? 0 : 10000,
+                                finalI < heavyJobs ? itemsPerSecondPerNode / numJobs : 100, cooperative)).execute();
+
+                        System.out.println("job " + finalI + " submitted");
+                    } catch (Throwable e) {
+                        e.printStackTrace();
+                    }
                 });
             }
             executor.shutdown();
