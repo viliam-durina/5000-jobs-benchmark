@@ -20,12 +20,13 @@ import com.hazelcast.jet.DAG;
 import com.hazelcast.jet.Jet;
 import com.hazelcast.jet.JetInstance;
 import com.hazelcast.jet.ProcessorMetaSupplier;
-import com.hazelcast.jet.Processors;
 import com.hazelcast.jet.TimestampKind;
 import com.hazelcast.jet.TimestampedEntry;
 import com.hazelcast.jet.Vertex;
 import com.hazelcast.jet.WindowDefinition;
+import com.hazelcast.jet.config.JobConfig;
 import com.hazelcast.jet.function.DistributedFunction;
+import com.hazelcast.jet.processor.Processors;
 import com.hazelcast.jet.server.JetBootstrap;
 import com.hazelcast.nio.IOUtil;
 
@@ -39,13 +40,13 @@ import java.util.concurrent.TimeUnit;
 
 import static com.hazelcast.jet.AggregateOperations.averagingLong;
 import static com.hazelcast.jet.Edge.between;
-import static com.hazelcast.jet.Processors.writeFile;
 import static com.hazelcast.jet.PunctuationPolicies.withFixedLag;
 import static com.hazelcast.jet.Util.entry;
 import static com.hazelcast.jet.WindowDefinition.slidingWindowDef;
-import static com.hazelcast.jet.WindowingProcessors.combineToSlidingWindow;
-import static com.hazelcast.jet.WindowingProcessors.groupByFrameAndAccumulate;
-import static com.hazelcast.jet.WindowingProcessors.insertPunctuation;
+import static com.hazelcast.jet.processor.Processors.accumulateByFrame;
+import static com.hazelcast.jet.processor.Processors.combineToSlidingWindow;
+import static com.hazelcast.jet.processor.Processors.insertPunctuation;
+import static com.hazelcast.jet.processor.Sinks.writeFile;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class FiveKJobs {
@@ -88,6 +89,7 @@ public class FiveKJobs {
 
         JetInstance instance = JetBootstrap.getInstance();
 
+
         Runtime.getRuntime().addShutdownHook(new Thread(() -> IOUtil.delete(directory.toFile())));
 
         try {
@@ -98,10 +100,14 @@ public class FiveKJobs {
             for (int i = 0; i < numJobs; i++) {
                 int finalI = i;
                 executor.submit(() -> {
+                    JobConfig jobConfig = new JobConfig();
+//                    jobConfig.addClass(FiveKJobs.class);
+//                    jobConfig.addClass(RandomDataP.class);
                     try {
-                        instance.newJob(buildDag(sDirectory + finalI, clusterSize, "lag" + finalI + "-",
+                        instance.newJob(buildDag(sDirectory + finalI, clusterSize,
+                                finalI == 0 ? "lag" + finalI + "-" : null,
                                 finalI < heavyJobs ? 0 : 10000,
-                                finalI < heavyJobs ? itemsPerSecondPerNode / numJobs : 100, cooperative)).execute();
+                                finalI < heavyJobs ? itemsPerSecondPerNode / numJobs : 100, cooperative), jobConfig).execute();
 
                         System.out.println("job " + finalI + " submitted");
                     } catch (Throwable e) {
@@ -142,7 +148,7 @@ public class FiveKJobs {
                 insertPunctuation(Entry<Long, Integer>::getKey, () -> withFixedLag(0).throttleByFrame(wDef)))
                 .localParallelism(1);
         Vertex slidingWindowStage1 = dag.newVertex("slidingWindowStage1",
-                groupByFrameAndAccumulate(keyExtractor, Entry::getKey, TimestampKind.EVENT, wDef, aggrOper))
+                accumulateByFrame(keyExtractor, Entry::getKey, TimestampKind.EVENT, wDef, aggrOper))
                 .localParallelism(1);
         Vertex slidingWindowStage2 = dag.newVertex("slidingWindowStage2",
                 combineToSlidingWindow(wDef, aggrOper))
@@ -154,8 +160,10 @@ public class FiveKJobs {
                 .localParallelism(1);
 
         dag.edge(between(source, insertPunc).oneToMany())
-           .edge(between(insertPunc, slidingWindowStage1).oneToMany())
+           .edge(between(insertPunc, slidingWindowStage1)
+                   .partitioned(keyExtractor))
            .edge(between(slidingWindowStage1, slidingWindowStage2)
+                   .partitioned(TimestampedEntry<Integer, Object>::getKey)
                    .distributed())
            .edge(between(slidingWindowStage2, mapToLatency).oneToMany())
            .edge(between(mapToLatency, sink).oneToMany());

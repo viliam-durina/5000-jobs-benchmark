@@ -53,15 +53,17 @@ public class RandomDataP extends AbstractProcessor {
     protected void init(@Nonnull Context context) throws Exception {
         startNanoTime = System.nanoTime();
         startRealTime = System.currentTimeMillis();
-        lagTracker = context.jetInstance().getHazelcastInstance().getAtomicLong(
-                lagTrackerPrefix + context.globalProcessorIndex());
+        if (lagTrackerPrefix != null) {
+            lagTracker = context.jetInstance().getHazelcastInstance().getAtomicLong(
+                    lagTrackerPrefix + context.globalProcessorIndex());
+        }
     }
 
     @Override
     public boolean complete() {
         long nowNs = System.nanoTime();
         long shouldHaveEmitted = NANOSECONDS.toSeconds((nowNs - startNanoTime) * itemsPerSecond);
-        if (nowNs >= lagTrackerNextUpdate) {
+        if (lagTracker != null && nowNs >= lagTrackerNextUpdate) {
             lagTracker.set(shouldHaveEmitted - numEmitted);
             lagTrackerNextUpdate = nowNs + SECONDS.toNanos(1);
         }
