@@ -19,7 +19,7 @@ import com.hazelcast.jet.AggregateOperation;
 import com.hazelcast.jet.DAG;
 import com.hazelcast.jet.Jet;
 import com.hazelcast.jet.JetInstance;
-import com.hazelcast.jet.ProcessorMetaSupplier;
+import com.hazelcast.jet.ProcessorSupplier;
 import com.hazelcast.jet.TimestampKind;
 import com.hazelcast.jet.TimestampedEntry;
 import com.hazelcast.jet.Vertex;
@@ -156,7 +156,7 @@ public class FiveKJobs {
         Vertex mapToLatency = dag.newVertex("mapToLatency",
                 Processors.map((TimestampedEntry e) -> entry(e.getKey(), System.currentTimeMillis() - e.getTimestamp())))
                 .localParallelism(1);
-        Vertex sink = dag.newVertex("sink", !cooperative ? writeFile(directory) : ProcessorMetaSupplier.of(Processors.noop()))
+        Vertex sink = dag.newVertex("sink", !cooperative ? writeFile(directory) : ProcessorSupplier.of(Processors.noop()))
                 .localParallelism(1);
 
         dag.edge(between(source, insertPunc).oneToMany())
