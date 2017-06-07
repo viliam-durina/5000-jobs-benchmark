@@ -159,14 +159,14 @@ public class FiveKJobs {
         Vertex sink = dag.newVertex("sink", !cooperative ? writeFile(directory) : ProcessorSupplier.of(Processors.noop()))
                 .localParallelism(1);
 
-        dag.edge(between(source, insertPunc).oneToMany())
+        dag.edge(between(source, insertPunc).isolated())
            .edge(between(insertPunc, slidingWindowStage1)
                    .partitioned(keyExtractor))
            .edge(between(slidingWindowStage1, slidingWindowStage2)
                    .partitioned(TimestampedEntry<Integer, Object>::getKey)
                    .distributed())
-           .edge(between(slidingWindowStage2, mapToLatency).oneToMany())
-           .edge(between(mapToLatency, sink).oneToMany());
+           .edge(between(slidingWindowStage2, mapToLatency).isolated())
+           .edge(between(mapToLatency, sink).isolated());
 
         return dag;
     }
