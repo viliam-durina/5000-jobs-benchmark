@@ -40,12 +40,12 @@ import java.util.concurrent.TimeUnit;
 
 import static com.hazelcast.jet.AggregateOperations.averagingLong;
 import static com.hazelcast.jet.Edge.between;
-import static com.hazelcast.jet.PunctuationPolicies.withFixedLag;
 import static com.hazelcast.jet.Util.entry;
+import static com.hazelcast.jet.WatermarkPolicies.withFixedLag;
 import static com.hazelcast.jet.WindowDefinition.slidingWindowDef;
 import static com.hazelcast.jet.processor.Processors.accumulateByFrame;
 import static com.hazelcast.jet.processor.Processors.combineToSlidingWindow;
-import static com.hazelcast.jet.processor.Processors.insertPunctuation;
+import static com.hazelcast.jet.processor.Processors.insertWatermarks;
 import static com.hazelcast.jet.processor.Sinks.writeFile;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
@@ -144,8 +144,8 @@ public class FiveKJobs {
         Vertex source = dag.newVertex("source",
                 () -> new RandomDataP(itemsPerSecond, cooperative, lagTrackerPrefix, minSleepTime))
                            .localParallelism(1);
-        Vertex insertPunc = dag.newVertex("insertPunc",
-                insertPunctuation(Entry<Long, Integer>::getKey, () -> withFixedLag(0).throttleByFrame(wDef)))
+        Vertex insertWms = dag.newVertex("insertWms",
+                insertWatermarks(Entry<Long, Integer>::getKey, () -> withFixedLag(0).throttleByFrame(wDef)))
                 .localParallelism(1);
         Vertex slidingWindowStage1 = dag.newVertex("slidingWindowStage1",
                 accumulateByFrame(keyExtractor, Entry::getKey, TimestampKind.EVENT, wDef, aggrOper))
@@ -159,8 +159,8 @@ public class FiveKJobs {
         Vertex sink = dag.newVertex("sink", !cooperative ? writeFile(directory) : ProcessorSupplier.of(Processors.noop()))
                 .localParallelism(1);
 
-        dag.edge(between(source, insertPunc).isolated())
-           .edge(between(insertPunc, slidingWindowStage1)
+        dag.edge(between(source, insertWms).isolated())
+           .edge(between(insertWms, slidingWindowStage1)
                    .partitioned(keyExtractor))
            .edge(between(slidingWindowStage1, slidingWindowStage2)
                    .partitioned(TimestampedEntry<Integer, Object>::getKey)
