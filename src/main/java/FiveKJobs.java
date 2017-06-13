@@ -41,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 import static com.hazelcast.jet.AggregateOperations.averagingLong;
 import static com.hazelcast.jet.Edge.between;
 import static com.hazelcast.jet.Util.entry;
+import static com.hazelcast.jet.WatermarkEmissionPolicy.emitByFrame;
 import static com.hazelcast.jet.WatermarkPolicies.withFixedLag;
 import static com.hazelcast.jet.WindowDefinition.slidingWindowDef;
 import static com.hazelcast.jet.processor.Processors.accumulateByFrame;
@@ -145,7 +146,7 @@ public class FiveKJobs {
                 () -> new RandomDataP(itemsPerSecond, cooperative, lagTrackerPrefix, minSleepTime))
                            .localParallelism(1);
         Vertex insertWms = dag.newVertex("insertWms",
-                insertWatermarks(Entry<Long, Integer>::getKey, () -> withFixedLag(0).throttleByFrame(wDef)))
+                insertWatermarks(Entry<Long, Integer>::getKey, withFixedLag(0), emitByFrame(wDef)))
                 .localParallelism(1);
         Vertex slidingWindowStage1 = dag.newVertex("slidingWindowStage1",
                 accumulateByFrame(keyExtractor, Entry::getKey, TimestampKind.EVENT, wDef, aggrOper))
